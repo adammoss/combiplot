@@ -12,11 +12,16 @@ import csv
 audio = []
 sample_rate = 44100.0
 
-csv_file = "tframelog.csv"
+#csv_file = "framelog.csv"
+#csv_file = "nyorks_log_1.csv"
+csv_file = "newout.csv"
 
 debug=True
 fps=24.0
+data_column = 4 #4 for deaths, 3 for cases
 beep_step = 100
+a_freq=880
+ofn = "badtimes.wav"
 
 #Parse a CSV file and read data lines into list
 def read_file(filename, delim=','):
@@ -93,7 +98,7 @@ def save_wav(file_name):
     return
 
 csv_data=read_file(csv_file)
-deaths=[int(en[4]) for en in csv_data]
+deaths=[int(en[data_column]) for en in csv_data]
 minimum_time_gap = 1000
 previous_beep_time = 0
 frame_time=1.0/ fps
@@ -108,19 +113,22 @@ for i,d in enumerate(deaths):
         deaths_in_frame = d - prev_count
         deaths_after_beep = d - next_beep
         next_beep += beep_step
-        excess_time = (float(deaths_after_beep) / deaths_in_frame) * frame_time
-        beep_time = running_time - excess_time
-        beep_array.append(beep_time)
-        if (beep_time - previous_beep_time) < minimum_time_gap:
-            minimum_time_gap = beep_time - previous_beep_time
+        if(deaths_in_frame > 0):
+            excess_time = (float(deaths_after_beep) / deaths_in_frame) * frame_time
+            beep_time = running_time - excess_time
+            beep_array.append(beep_time)
+            if (beep_time - previous_beep_time) < minimum_time_gap:
+                minimum_time_gap = beep_time - previous_beep_time
         previous_beep_time = beep_time
     prev_count=d
 on_time_length = 0.7 * minimum_time_gap
+if on_time_length < 0.03: on_time_length = 0.03
 run_time = 0
 for beep in beep_array:
     silence_time = beep - run_time
+    if silence_time < 0.003: silence_time = 0.003
     append_silence(duration_milliseconds=(silence_time * 1000.0))
-    append_sinewave(freq=880,duration_milliseconds=(on_time_length * 1000.0),volume=0.5)
+    append_sinewave(freq=a_freq,duration_milliseconds=(on_time_length * 1000.0),volume=0.5)
     run_time = beep + on_time_length
     
 #append_sinewave(volume=0.25)
@@ -128,4 +136,4 @@ for beep in beep_array:
 #append_sinewave(volume=0.5)
 #append_silence()
 #append_sinewave()
-save_wav("a_output.wav")
+save_wav(ofn)

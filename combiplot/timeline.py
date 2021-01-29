@@ -10,7 +10,7 @@ Dec 28 2020
 
 import geopandas as gpd
 import matplotlib.pyplot as plt,numpy as np
-import os,ast,csv,random, math
+import os,ast,csv,random, math, pickle
 from datetime import datetime, timedelta
 
 from requests import get
@@ -22,6 +22,11 @@ print("Covid Timeline Video Plotter    -    version 1.0    -    @jah-photoshop D
 print("________________________________________________________________________________")
 
 debug=True
+data_path = "data"
+preset_path = "presets"
+
+preset = "new"
+deaths_colour='#FF0000'
 
 #Parse a CSV file and read data lines into list
 def read_file(filename, delim=','):
@@ -51,9 +56,22 @@ def get_list_of_coords(ltla_id,sample_size):
         #print ("Error: %s %d %d" % (ltla_id,sample_size,len(coord_i_list)))
         return []
     return ret
-    
 
-data_path = "data"
+
+def load_parameters(preset_name):
+    global short_name,api_url,frames_per_day,frame_margins,filter_data,filter_list,plot_eng_ltla_boundaries,plot_wales_ltla_boundaries,plot_scot_ltla_boundaries,ltla_linewidth,ltla_colour,f_ltla_colour,cases_marker,cases_colour,cases_hist_window_size,cases_markersize,deaths_marker,deaths_hist_window_size,deaths_markersize,background_overlay,y_date,y_cases,y_deaths,x_text,resize,use_background,target_width,target_height,date_size,counter_size,log_filename,counter_start_date,output_path,use_overlay,plot_start_date,overlay_list,overlay_dates,c_size
+    with open(preset_path+os.path.sep+preset_name+".pickle","rb") as f: preset_data=pickle.load(f)        
+    short_name,api_url,frames_per_day,frame_margins,filter_data,filter_list,plot_eng_ltla_boundaries,plot_wales_ltla_boundaries,plot_scot_ltla_boundaries,ltla_linewidth,ltla_colour,f_ltla_colour,cases_marker,cases_colour,cases_hist_window_size,cases_markersize,deaths_marker,deaths_hist_window_size,deaths_markersize,background_overlay,y_date,y_cases,y_deaths,x_text,resize,use_background,target_width,target_height,date_size,counter_size,log_filename,counter_start_date,output_path,use_overlay,plot_start_date,overlay_list,overlay_dates,c_size = preset_data
+
+load_parameters(preset)
+
+overlay_tweets=False
+tweets=[]
+if(overlay_tweets):
+        tweets=os.listdir('tweets/tweets/')
+        tweets.sort()
+        
+
 
 print("________________________________________________________________________________")
 print("LOADING DATA")
@@ -74,7 +92,7 @@ wales_ltla_map = gpd.read_file(ltla_filename,rows=slice(357,379))
 #Data API: https://api.coronavirus.data.gov.uk/v2/data?areaType=ltla&metric=newCasesBySpecimenDate&metric=newDeathsByDeathDate&format=csv
 #data_string= get_data("https://api.coronavirus.data.gov.uk/v2/data?areaType=ltla&metric=newCasesBySpecimenDate&metric=newDeathsByDeathDate&format=csv")
 #data_string= get_data("https://api.coronavirus.data.gov.uk/v2/data?areaType=ltla&metric=newCasesBySpecimenDate&metric=newDeathsByDeathDate&format=csv")
-data_string= get_data("https://api.coronavirus.data.gov.uk/v2/data?areaType=ltla&metric=newCasesBySpecimenDate&metric=newDeaths28DaysByDeathDate&format=csv")
+data_string= get_data(api_url)
 
 local_data=[]
 data_reader = csv.reader(StringIO(data_string), delimiter=',')
@@ -132,111 +150,30 @@ for day in range(no_days):
     dc = []
     for ind,area in enumerate(area_codes):
         if(area.startswith('E')): #Filter out welsh data for now...
-            cc.extend(get_list_of_coords(area,case_dataset[ind][day]))
-            dc.extend(get_list_of_coords(area,death_dataset[ind][day]))
+            if(not filter_data or area in filter_list):                 
+                cc.extend(get_list_of_coords(area,case_dataset[ind][day]))
+                dc.extend(get_list_of_coords(area,death_dataset[ind][day]))
     random.shuffle(cc)
     random.shuffle(dc)
     case_coordinates.append(cc)
     death_coordinates.append(dc)
     case_counts.append(len(cc))
     death_counts.append(len(dc))
+
+if(not os.path.isdir(output_path)): os.makedirs(output_path)
+
 print("________________________________________________________________________________")
 
 
 print("PRODUCING PLOTS")
 
 
-#Original set
-frames_per_day = 6
-frame_margins = [133000,658000,10600,655000]
-plot_eng_ltla_boundaries = True
-plot_wales_ltla_boundaries = True
-plot_scot_ltla_boundaries = True
-ltla_linewidth = 2.0
-ltla_colour='#888888'
-f_ltla_colour='#CCCCCC'
-cases_marker='.'
-cases_colour = '#00CC00'
-cases_hist_window_size = frames_per_day * 7
 cases_hist_window_index = 0
-cases_markersize =120
-deaths_marker='X'
-deaths_colour = '#EE0000'
-deaths_hist_window_size = frames_per_day * 3
 deaths_hist_window_index = 0
-deaths_markersize=360
-background_overlay = "background.png"
-background_overlay = "cumulative.png"
-y_date = 600000
-y_cases = 516000
-y_deaths = 450000
-resize=True
-use_background=True
-target_width = 1080 
-target_height = 1324
 death_counter = 0
 cases_counter = 0
-date_size = 150
-counter_size = 100
-log_filename="framelog.csv"
-counter_start_date = datetime(2020,1,1)
-output_path = "output"
-use_overlay = False
-plot_start_date = datetime(2020,1,11) 
 
-
-#
-#
-##Test set
-#frames_per_day = 8
-#frame_margins = [133000,658000,10600,712022]
-#plot_eng_ltla_boundaries = True
-#plot_wales_ltla_boundaries = True
-#plot_scot_ltla_boundaries = True
-#ltla_linewidth = 3.0
-#ltla_colour='#888888'
-#f_ltla_colour='#DDDDDD'
-#cases_marker='.'
-#cases_colour = '#00CC00'
-#cases_hist_window_size = frames_per_day * 7
-#cases_hist_window_index = 0
-#cases_markersize = 160
-#deaths_marker='X'
-#deaths_colour = '#EE0000'
-#deaths_hist_window_size = frames_per_day * 5
-#deaths_hist_window_index = 0
-#deaths_markersize=480
-#background_overlay = "tabloid-bg.png"
-#y_date = 620000
-#y_cases = 538000
-#y_deaths = 465000
-#resize=True
-#use_background=True
-#target_width = 1080 
-#target_height = 1440
-#death_counter = 0
-#cases_counter = 0
-#date_size = 148
-#counter_size = 116
-#log_filename="tframelog.csv"
-#counter_start_date = datetime(2020,9,1)
-#output_path = "output_tab"
-#plot_start_date = datetime(2020,2,1) 
-#use_overlay = True
-#overlay = 'backgrounds/bg01.png'
-#
-
-
-
-bg_list = ['backgrounds/bg01.png','backgrounds/bg02.png','backgrounds/bg03.png','backgrounds/bg04.png','backgrounds/bg05.png','backgrounds/bg06.png','backgrounds/bg07.png','backgrounds/bg08.png',
-           'backgrounds/bg09.png','backgrounds/bg10.png','backgrounds/bg11.png','backgrounds/bg10.png','backgrounds/bg12.png','backgrounds/bg13.png','backgrounds/bg14.png','backgrounds/bg15.png','backgrounds/bg16.png','backgrounds/bg17.png','backgrounds/bg18.png']
-#19 backgrounds[10 is repeated]
-bg_dates = [datetime(2020,9,1),datetime(2020,9,18),datetime(2020,9,25),datetime(2020,9,29),
-            datetime(2020,10,4),datetime(2020,10,7),datetime(2020,10,9),datetime(2020,10,11),
-            datetime(2020,10,13),datetime(2020,10,15),datetime(2020,10,16),datetime(2020,10,28),           
-            datetime(2020,10,29),datetime(2020,11,10),datetime(2020,11,11),datetime(2020,11,23),
-            datetime(2020,11,24),datetime(2020,12,9),datetime(2020,12,10)            
-            ]
+g_factor = 10
 
 
 
@@ -252,13 +189,21 @@ plt.rcParams['font.family']='sans-serif'
 plt.rcParams['font.sans-serif']='FLIPclockBlack'
 day_offset = (plot_start_date - start_date).days
 frame_count = 0
+tweet_index = 0
+tweet_step = 5 * frames_per_day
+#tweet_step=1
+new_tweet = None
+old_tweet = None
+old_y = 0
+new_y = 0
+
 for day in range (no_days - day_offset):
     day_index = day + day_offset
     date = start_date + timedelta(days=day_index)
     
     if use_overlay:
-        for inx,bgd in enumerate(bg_dates):
-            if (date >= bgd): overlay = bg_list[inx]
+        for inx,bgd in enumerate(overlay_dates):
+            if (date >= bgd): overlay = overlay_list[inx]
     
     datestring = datetime.strftime(date,"%b %d")
     fdatestring = datetime.strftime(date,"%Y%m%d")
@@ -266,13 +211,17 @@ for day in range (no_days - day_offset):
     #Use numpy array split to split the case + death lists by day 
     split_cases = np.array_split(case_coordinates[day_index],frames_per_day)
     split_deaths = np.array_split(death_coordinates[day_index],frames_per_day)
+    random.shuffle(split_cases)
+    random.shuffle(split_deaths)
     for frame in range (frames_per_day):
         frame_count += 1
         cases_array = split_cases[frame]
         deaths_array = split_deaths[frame]
+        
         if(date >= counter_start_date):
             death_counter += len(deaths_array)
             cases_counter += len(cases_array)
+
         print("Producing subplot %d of %d [cases:%05d deaths:%04d]" % (frame+1,frames_per_day,len(cases_array),len(deaths_array)))
         f_string = "%s%sF-%s-%02d.png" % (output_path,os.path.sep,fdatestring,frame)
         print("Creating file %s" % (f_string))
@@ -305,7 +254,7 @@ for day in range (no_days - day_offset):
             h_fact = 1.0 - ((1.0 + i) / cases_hist_window_size)
             h_fact = math.sqrt(h_fact)
             alpha_v = 1.0 - h_fact
-            m_size = cases_markersize * ((h_fact * 8) + 1)
+            m_size = cases_markersize * ((h_fact * g_factor) + 1)
             plt.scatter([el[0] for el in cases_history[s_index]],[el[1] for el in cases_history[s_index]],color=cases_colour,alpha=alpha_v,s=m_size,marker=cases_marker,lw=0,zorder=z)
             z+=1
             
@@ -324,12 +273,12 @@ for day in range (no_days - day_offset):
         plt.scatter([el[0] for el in deaths_array],[el[1] for el in deaths_array],color=deaths_colour,marker=deaths_marker,s=deaths_markersize,edgecolors='#440000',lw=2,zorder=z)
         z+=1
         c_str = "%d" % cases_counter
-        while len(c_str)<7: c_str="-"+c_str
+        while len(c_str)<(c_size + 2): c_str="-"+c_str
         d_str = "%d" % death_counter
-        while len(d_str)<5: d_str="-"+d_str
-        plt.text(648000,y_date,datestring,horizontalalignment='right',fontsize=date_size)
-        plt.text(648000,y_cases,c_str,horizontalalignment='right',fontsize=counter_size)
-        plt.text(648000,y_deaths,d_str,horizontalalignment='right',fontsize=counter_size)
+        while len(d_str)<(c_size): d_str="-"+d_str
+        plt.text(x_text,y_date,datestring,horizontalalignment='right',fontsize=date_size)
+        plt.text(x_text,y_cases,c_str,horizontalalignment='right',fontsize=counter_size)
+        plt.text(x_text,y_deaths,d_str,horizontalalignment='right',fontsize=counter_size)
 
         #Save figure
         plt.savefig(f_string, bbox_inches='tight')
@@ -337,56 +286,38 @@ for day in range (no_days - day_offset):
         if(resize):os.system('convert %s -resize %dx%d\! %s' % (f_string,target_width,target_height,f_string))
         if(use_background):os.system('composite %s %s %s' % (background_overlay, f_string,f_string))   
         if(use_overlay):os.system('composite %s %s %s' % (overlay, f_string,f_string))   
+        if(overlay_tweets):
+            tweet_step -= 1
+            if(tweet_step == 0):
+                #Load new tweet
+                tweet_step = int(3.5 * frames_per_day)
+                old_tweet = new_tweet
+                old_y = new_y
+                new_tweet = tweet_index
+                tweet_index+=1
+                new_y=random.randint(244,1000)
+                while(abs(new_y - old_y) < 300):
+                     new_y=random.randint(244,1000)
 
+            gamma = (0.5 * tweet_step) / (frames_per_day * 3)
+            igam = int(100 * gamma) + 15
+            if(old_tweet is not None and old_tweet < len(tweets)):
+                mf_line = "composite -dissolve %d -geometry +60+%d " % (igam,old_y)
+                mf_line += 'tweets/tweets/'+ tweets[old_tweet] + ' ' + f_string + " -alpha Set " + f_string
+                print(mf_line)
+                os.system(mf_line)
+            if(new_tweet is not None and new_tweet < len(tweets)):
+                d_gam = 50 + igam
+                if(d_gam > 100):d_gam=100
+                mf_line = "composite -dissolve %d -geometry +60+%d " % (d_gam,new_y)
+                mf_line += 'tweets/tweets/'+ tweets[new_tweet] + ' ' + f_string + " -alpha Set " + f_string
+                print(mf_line)
+                os.system(mf_line)
+
+                
         #Update log file [for making soundtrack etc]
         with open(log_filename,"a") as file_object:
             file_object.write("%d,%s,%d,%d,%d\n" % (frame_count,fdatestring,frame,cases_counter,death_counter))
-#        #divider = make_axes_locatable(ax)
-#        #cax = divider.append_axes("bottom",size="5%",pad=0.1)
-#        if(plot_laa_names or plot_laa_values):
-#            #laa_centroids.plot(ax=ax,zorder=6,color='#33CC44')
-#            for name in target_places:
-#                count=laa_names.index(name)
-#                val=laa_rates[count][day]
-#                kx = laa_centroids[count][0]
-#                ky = laa_centroids[count][1]
-#                if kx > frame_margins[0] and kx < frame_margins[1] and ky > frame_margins[2] and ky < frame_margins[3]:                
-#                    #Plot labels text centered unless within 10% of RHS or LHS margin
-#                    al_mode = 'center'
-#                    if kx > ( (frame_margins[1] - frame_margins[0]) * 0.95) + frame_margins[0]: al_mode = 'right'
-#                    if kx < ( (frame_margins[1] - frame_margins[0]) * 0.05) + frame_margins[0]: al_mode = 'left'
-#                    y_shift = 0
-#                    if ky > ( (frame_margins[3] - frame_margins[2]) * 0.95) + frame_margins[2]: y_shift = -2 * (y_step * laa_fontsize)
-#                    if ky < ( (frame_margins[3] - frame_margins[2]) * 0.05) + frame_margins[2]: y_shift = 2 * (y_step * laa_fontsize)
-#                    yy_shift = 0
-#                    if plot_laa_names: 
-#                        yy_shift = y_step * laa_fontsize
-#                        plt.text(laa_centroids[count][0],laa_centroids[count][1]+y_shift+yy_shift,name,horizontalalignment=al_mode,fontsize=laa_fontsize*0.6,bbox=dict(boxstyle='square',color='#AAAA8855'))
-#                    if plot_laa_values: plt.text(laa_centroids[count][0],laa_centroids[count][1]+y_shift-yy_shift,"%3.1f" % val,horizontalalignment=al_mode,fontsize=laa_fontsize) #bbox=dict(boxstyle='square',color='#FFFFEE11')
-#        if add_date: plt.text(label_x,label_y,c_date.strftime("%B %d"), horizontalalignment=text_align_mode, style='italic',fontsize=date_font_size)
-#        if add_title:plt.text(title_x,title_y,title_string,horizontalalignment=text_align_mode,fontsize=title_font_size)
-#        if add_footer:    
-#            footer = file_date.strftime(footer_message + " Data set published %d/%m/%y. github.com/jah-photoshop/autocovid")
-#            fr_scale = f_scale
-#            if(plot_laa_values): 
-#                footer = "Values are cases/100K/week. "+footer
-#                fr_scale = f_scale * 1.2
-#            plt.text(frame_margins[1]-( (frame_margins[1] - frame_margins[0]) * 0.01),frame_margins[2]+( (frame_margins[3] - frame_margins[2]) * 0.01),footer,horizontalalignment='right',fontsize=title_font_size / fr_scale, bbox=dict(boxstyle='square',color='#AAAA8844'))
-#        plt.savefig(f_string, bbox_inches='tight')
-#        if post_process:
-#            if resize_output: os.system('convert %s -resize %dx%d\! %s' % (f_string,target_width,target_height,f_string))
-#            if add_background: os.system('composite %s %s %s' % (f_string,background_file,f_string))
-#            if add_overlay: 
-#                for count, of in enumerate(overlay_filenames):
-#                    if of[-1]==os.path.sep: of+=c_date.strftime("map-%Y%m%d.png")
-#                    print(of)
-#                    if overlay_positions[count] == [0,0]: os.system('composite %s %s %s' % (of, f_string,f_string))                    
-#                    else: os.system('composite %s -geometry +%d+%d %s %s' % (of, overlay_positions[count][0],overlay_positions[count][1],f_string,f_string))
-#        fig.clf()   
-#        #Copy file to googledrive
-#        if(archive):
-#            if not os.path.exists(archive_path + short_name): os.makedirs(archive_path+short_name)
-#            shutil.copyfile(f_string,archive_path + short_name + os.path.sep + c_date.strftime("map-%Y%m%d.png"))
     print("________________________________________________________________________________")
 print("Operation complete.")
 
